@@ -37,9 +37,6 @@ jobs:
           sudo bash LinkToGSI.sh "${{ github.event.inputs.ROM_URL }}" Pixel
           7z a -v500m -tzip ZestUIBuilder.zip Output/*.img
 
-      - name: Make upload script executable
-        run: chmod +x upload.sh
-
       - name: Upload build result(s) to GoFile
         env:
           GOFILE_TOKEN: ${{ secrets.GOFILE_TOKEN }}
@@ -52,8 +49,9 @@ jobs:
           fi
           for part in "${parts[@]}"; do
             echo "Uploading $part ..."
-            ./upload.sh "$part"
+            bash upload.sh "$part"
           done
 
       - name: Summary
         run: echo "Done. See the 'Upload build result(s) to GoFile' step logs for download links."
+        
