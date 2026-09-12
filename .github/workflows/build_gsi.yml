@@ -1,34 +1,59 @@
-name: Release
+name: ZestUIBuilder
 
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
+    inputs:
+      ROM_URL:
+        description: 'ROM_URL'
+        required: true
+        default: ''
 
 jobs:
   build-and-upload:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - name: Checkout code
+      - name: Checkout this repo (for upload.sh)
         uses: actions/checkout@v4
 
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y jq
-
-      # --- Replace this block with your actual build steps ---
-      - name: Build
         run: |
-          echo "TODO: put your real build commands here"
-          # e.g.: make build   -> should produce something like output.img
+          sudo apt-get update
+          sudo apt-get install -y \
+            unace unrar zip unzip p7zip-full p7zip-rar sharutils \
+            uudeview mpack arj cabextract rename liblzma-dev \
+            python3-pip brotli lz4 protobuf-compiler git gawk jq
+          # Note: 'rar' (the proprietary encoder) isn't in default Ubuntu
+          # repos. Dropped here — unrar/p7zip-rar already cover extraction.
 
-      - name: Make scripts executable
-        run: chmod +x release.sh upload.sh
+      - name: Clone ZestUIBuilder and patch ROM
+        run: |
+          git clone https://github.com/blxyzY/ZestUIBuilder
+          cd ZestUIBuilder
+          mkdir -p DownloadedROMs
+          mkdir -p UnpackedROMs
+          mkdir -p UnpackedROMs/system
+          sudo bash LinkToGSI.sh "${{ github.event.inputs.ROM_URL }}" Pixel
+          7z a -v500m -tzip ZestUIBuilder.zip Output/*.img
 
-      - name: Upload build result to GoFile
+      - name: Make upload script executable
+        run: chmod +x upload.sh
+
+      - name: Upload build result(s) to GoFile
         env:
           GOFILE_TOKEN: ${{ secrets.GOFILE_TOKEN }}
-        run: ./release.sh
+        run: |
+          shopt -s nullglob
+          parts=(ZestUIBuilder/ZestUIBuilder.zip.*)
+          if [[ ${#parts[@]} -eq 0 ]]; then
+            echo "Error: no output volumes found (ZestUIBuilder/ZestUIBuilder.zip.*)" >&2
+            exit 1
+          fi
+          for part in "${parts[@]}"; do
+            echo "Uploading $part ..."
+            ./upload.sh "$part"
+          done
 
       - name: Summary
-        run: echo "Done. See the 'Upload build result to GoFile' step logs for the download link."
+        run: echo "Done. See the 'Upload build result(s) to GoFile' step logs for download links."
