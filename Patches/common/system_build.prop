@@ -7,21 +7,26 @@ persist.sys.disable_rescue=true
 ro.control_privapp_permissions=disable
 ro.cp_system_other_odex=0
 ro.nnapi.extensions.deny_on_product=true
+ro.oem_unlock_enabled=1
 
 # Force ADB
 persist.service.adb.enable=1
 persist.service.debuggable=1
-persist.sys.usb.config=mtp,adb
+persist.sys.usb.config=adb
 ro.adb.secure=0
 ro.secure=0
 ro.debuggable=1
 
-# Some devices have sdcardfs kernel panicing on 8.0, Disable for everyone for the moment
-ro.sys.sdcardfs=0
-
-# Logcat 
+# Logcat
 logd.logpersistd=logcatd 
 logd.logpersistd.buffer=all 
 logd.logpersistd.enable=true 
 logd.logpersistd.size=1024 
 logd.logpersistd.size.rotate=64
+
+# Disable Dolby completely
+ro.dolby.enabled=false
+persist.vendor.dolby.enabled=false
+persist.audio.dolby.enabled=false
+ro.vendor.audio.dolby=false
+ro.audio.ignore_effects=true

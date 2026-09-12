@@ -27,7 +27,7 @@ usage() {
 supported_roms() {
     echo "Available ROMs:"
     echo ""
-    declare -a versions=(12 12.1 13 14 15)
+    declare -a versions=(15 16)
     for version in "${versions[@]}"; do
         rom_dir="ROMsPatches/$version"
         if [ -d "$rom_dir" ]; then
@@ -47,6 +47,12 @@ if [ -z "$2" ]; then
   exit 0
 fi
 
+if ! command -v mount.f2fs >/dev/null 2>&1; then
+    echo "f2fs-tools tidak ditemukan, menginstall..."
+    sudo apt-get update -qq
+    sudo apt-get install -y f2fs-tools
+fi
+
 rm -rf DownloadedROMs
 rm -rf UnpackedROMs
 
@@ -58,8 +64,8 @@ wget -nv -P "DownloadedROMs/" "$ROM_LINK"
 Tools/Firmware_extractor/extractor.sh "DownloadedROMs/"* "UnpackedROMs/"
 
 for partition in $partitions; do
-    if [[ -f "UnpackedROMs/$partition_a.img" ]]; then
-        mv "UnpackedROMs/$partition_a.img" "UnpackedROMs/$partition.img"
+    if [[ -f "UnpackedROMs/${partition}_a.img" ]]; then
+        mv "UnpackedROMs/${partition}_a.img" "UnpackedROMs/$partition.img"
     fi
 done
 
@@ -71,6 +77,8 @@ for partition in $partitions; do
         fs_type=$(blkid -o value -s TYPE "UnpackedROMs/$partition.img" 2>/dev/null)
         if [[ "$fs_type" == "ext2" || "$fs_type" == "ext4" ]]; then
             sudo mount -o loop,ro -t ext4 "UnpackedROMs/$partition.img" "UnpackedROMs/temp_mount"
+        elif [[ "$fs_type" == "f2fs" ]]; then
+            sudo mount -o loop,ro -t f2fs "UnpackedROMs/$partition.img" "UnpackedROMs/temp_mount"
         else
             sudo mount "UnpackedROMs/$partition.img" "UnpackedROMs/temp_mount"
         fi
@@ -95,4 +103,4 @@ for partition in $partitions; do
     fi
 done
 
-sudo bash FoxetGSITool.sh "UnpackedROMs/system" "$ROM_TYPE"
+sudo bash ZestUITool.sh "UnpackedROMs/system" "$ROM_TYPE"
