@@ -31,4 +31,4 @@ fi
 echo "Uploading build result via release.sh..."
 echo "Uploading to GoFile..."
 
-"$SCRIPT_DIR/upload.sh" "$BUILD_ARTIFACT"
+bash "$SCRIPT_DIR/upload.sh" "$BUILD_ARTIFACT"
