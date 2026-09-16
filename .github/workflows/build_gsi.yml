@@ -4,17 +4,22 @@ on:
   workflow_dispatch:
     inputs:
       ROM_URL:
-        description: 'ROM_URL'
+        description: 'ROM_URL (GSI/ROM source untuk LinkToGSI)'
         required: true
         default: ''
+      FS_TYPE:
+        description: 'Filesystem type (ext4, f2fs, erofs)'
+        required: true
+        default: 'erofs'
 
 jobs:
   build-and-upload:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+
     steps:
-      - name: Checkout this repo (for upload.sh)
+      - name: Checkout this repo
         uses: actions/checkout@v4
 
       - name: Install dependencies
@@ -24,7 +29,28 @@ jobs:
             unace unrar zip unzip p7zip-full p7zip-rar sharutils \
             uudeview mpack arj cabextract rename liblzma-dev \
             python3-pip brotli lz4 protobuf-compiler git gawk jq \
-            f2fs-tools
+            f2fs-tools android-sdk-libsparse-utils e2fsprogs \
+            erofs-utils bc python3-venv attr avbtool
+
+      - name: Setup directories and utils
+        run: |
+          mkdir -p "${{ github.workspace }}/SRC_DIR/scripts/utils"
+          mkdir -p "${{ github.workspace }}/SRC_DIR/security/avb"
+          mkdir -p "${{ github.workspace }}/TOOLS_DIR/venv/bin"
+          mkdir -p "${{ github.workspace }}/ODIN_DIR"
+          mkdir -p "${{ github.workspace }}/FW_DIR"
+          mkdir -p "${{ github.workspace }}/OUT_DIR"
+
+          cp extract_fw.sh "${{ github.workspace }}/SRC_DIR/scripts/extract_fw.sh"
+          cp build_fs_image.sh "${{ github.workspace }}/SRC_DIR/scripts/build_fs_image.sh"
+          cp firmware_utils.sh "${{ github.workspace }}/SRC_DIR/scripts/utils/firmware_utils.sh"
+          cp build_utils.sh "${{ github.workspace }}/SRC_DIR/scripts/utils/build_utils.sh"
+          cp testkey_rsa4096.pem "${{ github.workspace }}/SRC_DIR/security/avb/testkey_rsa4096.pem"
+
+          python3 -m venv "${{ github.workspace }}/TOOLS_DIR/venv"
+          source "${{ github.workspace }}/TOOLS_DIR/venv/bin/activate"
+          pip install --upgrade pip
+          pip install samloader
 
       - name: Clone ZestUIBuilder and patch ROM
         run: |
@@ -34,16 +60,83 @@ jobs:
           mkdir -p UnpackedROMs
           mkdir -p UnpackedROMs/system
           sudo bash LinkToGSI.sh "${{ github.event.inputs.ROM_URL }}" Pixel
-          7z a -v500m -tzip ZestUIBuilder.zip Output/*.img
+
+      - name: Extract firmware
+        env:
+          SRC_DIR: ${{ github.workspace }}/SRC_DIR
+          TOOLS_DIR: ${{ github.workspace }}/TOOLS_DIR
+          ODIN_DIR: ${{ github.workspace }}/ODIN_DIR
+          FW_DIR: ${{ github.workspace }}/FW_DIR
+          OUT_DIR: ${{ github.workspace }}/OUT_DIR
+        run: |
+          chmod +x "$SRC_DIR/scripts/extract_fw.sh"
+          bash "$SRC_DIR/scripts/extract_fw.sh" \
+            --ignore-source \
+            --ignore-target \
+            --force
+
+      - name: Build filesystem image
+        env:
+          SRC_DIR: ${{ github.workspace }}/SRC_DIR
+          TOOLS_DIR: ${{ github.workspace }}/TOOLS_DIR
+          FW_DIR: ${{ github.workspace }}/FW_DIR
+          OUT_DIR: ${{ github.workspace }}/OUT_DIR
+          TARGET_DISABLE_AVB_SIGNING: "false"
+        run: |
+          chmod +x "$SRC_DIR/scripts/build_fs_image.sh"
+
+          # Deteksi otomatis folder firmware pertama di FW_DIR
+          FW_SUBDIR="$(find "$FW_DIR" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
+          if [ -z "$FW_SUBDIR" ]; then
+            echo "Error: tidak ada folder firmware di $FW_DIR"
+            find "$FW_DIR" -maxdepth 3 -type d
+            exit 1
+          fi
+          echo "Menggunakan firmware dir: $FW_SUBDIR"
+
+          PARTITION_NAME="system"
+          INPUT_DIR="$FW_SUBDIR/$PARTITION_NAME"
+          if [ ! -d "$INPUT_DIR" ]; then
+            echo "Error: Input directory not found: $INPUT_DIR"
+            find "$FW_SUBDIR" -maxdepth 2 -type d
+            exit 1
+          fi
+
+          FILE_CONTEXT="$FW_SUBDIR/file_context-$PARTITION_NAME"
+          FS_CONFIG="$FW_SUBDIR/fs_config-$PARTITION_NAME"
+
+          [ -f "$FILE_CONTEXT" ] || { echo "Missing file_context: $FILE_CONTEXT"; exit 1; }
+          [ -f "$FS_CONFIG" ] || { echo "Missing fs_config: $FS_CONFIG"; exit 1; }
+
+          bash "$SRC_DIR/scripts/build_fs_image.sh" \
+            "${{ github.event.inputs.FS_TYPE }}" \
+            --avb \
+            --force \
+            --output "$OUT_DIR/$PARTITION_NAME.img" \
+            --partition-name "$PARTITION_NAME" \
+            "$INPUT_DIR" \
+            "$FILE_CONTEXT" \
+            "$FS_CONFIG"
+
+      - name: Package output
+        run: |
+          cd "$OUT_DIR"
+          shopt -s nullglob
+          imgs=(*.img)
+          if [ ${#imgs[@]} -eq 0 ]; then
+            echo "Error: no .img output found in $OUT_DIR" >&2
+            exit 1
+          fi
+          7z a -v500m -tzip "${{ github.workspace }}/ZestUIBuilder.zip" "${imgs[@]}"
 
       - name: Upload build result(s) to GoFile
         env:
           GOFILE_TOKEN: ${{ secrets.GOFILE_TOKEN }}
         run: |
           shopt -s nullglob
-          parts=(ZestUIBuilder/ZestUIBuilder.zip.*)
+          parts=("${{ github.workspace }}/ZestUIBuilder.zip"*)
           if [[ ${#parts[@]} -eq 0 ]]; then
-            echo "Error: no output volumes found (ZestUIBuilder/ZestUIBuilder.zip.*)" >&2
+            echo "Error: no output volumes found (ZestUIBuilder.zip*)" >&2
             exit 1
           fi
           for part in "${parts[@]}"; do
@@ -53,4 +146,3 @@ jobs:
 
       - name: Summary
         run: echo "Done. See the 'Upload build result(s) to GoFile' step logs for download links."
-        
