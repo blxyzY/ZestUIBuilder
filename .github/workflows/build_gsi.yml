@@ -23,9 +23,8 @@ jobs:
           sudo apt-get install -y \
             unace unrar zip unzip p7zip-full p7zip-rar sharutils \
             uudeview mpack arj cabextract rename liblzma-dev \
-            python3-pip brotli lz4 protobuf-compiler git gawk jq
-          # Note: 'rar' (the proprietary encoder) isn't in default Ubuntu
-          # repos. Dropped here — unrar/p7zip-rar already cover extraction.
+            python3-pip brotli lz4 protobuf-compiler git gawk jq \
+            f2fs-tools
 
       - name: Clone ZestUIBuilder and patch ROM
         run: |
