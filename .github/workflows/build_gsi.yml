@@ -29,28 +29,7 @@ jobs:
             unace unrar zip unzip p7zip-full p7zip-rar sharutils \
             uudeview mpack arj cabextract rename liblzma-dev \
             python3-pip brotli lz4 protobuf-compiler git gawk jq \
-            f2fs-tools android-sdk-libsparse-utils e2fsprogs \
-            erofs-utils bc python3-venv attr avbtool
-
-      - name: Setup directories and utils
-        run: |
-          mkdir -p "${{ github.workspace }}/SRC_DIR/scripts/utils"
-          mkdir -p "${{ github.workspace }}/SRC_DIR/security/avb"
-          mkdir -p "${{ github.workspace }}/TOOLS_DIR/venv/bin"
-          mkdir -p "${{ github.workspace }}/ODIN_DIR"
-          mkdir -p "${{ github.workspace }}/FW_DIR"
-          mkdir -p "${{ github.workspace }}/OUT_DIR"
-
-          cp extract_fw.sh "${{ github.workspace }}/SRC_DIR/scripts/extract_fw.sh"
-          cp build_fs_image.sh "${{ github.workspace }}/SRC_DIR/scripts/build_fs_image.sh"
-          cp firmware_utils.sh "${{ github.workspace }}/SRC_DIR/scripts/utils/firmware_utils.sh"
-          cp build_utils.sh "${{ github.workspace }}/SRC_DIR/scripts/utils/build_utils.sh"
-          cp testkey_rsa4096.pem "${{ github.workspace }}/SRC_DIR/security/avb/testkey_rsa4096.pem"
-
-          python3 -m venv "${{ github.workspace }}/TOOLS_DIR/venv"
-          source "${{ github.workspace }}/TOOLS_DIR/venv/bin/activate"
-          pip install --upgrade pip
-          pip install samloader
+            f2fs-tools
 
       - name: Clone ZestUIBuilder and patch ROM
         run: |
