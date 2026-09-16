@@ -8,7 +8,6 @@ source "$SRC_DIR/scripts/utils/build_utils.sh" || exit 1
 FORCE=false
 BUILD_ROM=false
 BUILD_TARGET_FILES=true
-BUILD_FLASHABLE_ZIP=false
 
 START_TIME="$(date +%s)"
 
@@ -55,10 +54,6 @@ PREPARE_SCRIPT()
             FORCE=true
         elif [[ "$1" == "--no-target-files" ]] || [[ "$1" == "-x" ]]; then
             BUILD_TARGET_FILES=false
-            BUILD_FLASHABLE_ZIP=false
-        elif [[ "$1" == "--build-rom-zip" ]] || [[ "$1" == "-z" ]]; then
-            BUILD_TARGET_FILES=true
-            BUILD_FLASHABLE_ZIP=true
         else
             if [[ "$1" == "-"* ]]; then
                 LOGE "Unknown option: $1"
@@ -94,7 +89,6 @@ PRINT_USAGE()
     echo "Usage: make_rom [options]" >&2
     echo " -f, --force : Force ROM build" >&2
     echo " -x, --no-target-files : Do not build target-files zip" >&2
-    echo " -z, --build-rom-zip : Build flashable zip" >&2
 }
 # ]
 
@@ -165,7 +159,7 @@ if $BUILD_ROM; then
     echo -n "$(GET_WORK_DIR_HASH)" > "$WORK_DIR/.completed"
 fi
 
-if $BUILD_TARGET_FILES || $BUILD_FLASHABLE_ZIP; then
+if $BUILD_TARGET_FILES; then
     ZIP_FILE_NAME="${TARGET_CODENAME}_"
     if [ "$(GET_PROP "system" "ro.unica.version")" ]; then
         ZIP_FILE_NAME+="$(GET_PROP "system" "ro.unica.version")"
@@ -180,12 +174,6 @@ if $BUILD_TARGET_FILES || $BUILD_FLASHABLE_ZIP; then
         LOG_STEP_OUT
     else
         LOGW "File already exists: ${OUT_DIR//$SRC_DIR\//}/$ZIP_FILE_NAME"
-    fi
-
-    if $BUILD_FLASHABLE_ZIP; then
-        LOG_STEP_IN true "Creating flashable zip"
-        "$SRC_DIR/scripts/build_flashable_zip.sh" "$OUT_DIR/$ZIP_FILE_NAME" || exit 1
-        LOG_STEP_OUT
     fi
 fi
 
