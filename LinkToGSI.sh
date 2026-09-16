@@ -47,7 +47,8 @@ if [ -z "$2" ]; then
   exit 0
 fi
 
-if ! command -v mount.f2fs >/dev/null 2>&1; then
+# --- f2fs support: pastikan tools tersedia ---
+if ! command -v mount.f2fs >/dev/null 2>&1 || ! command -v fsck.f2fs >/dev/null 2>&1; then
     echo "f2fs-tools tidak ditemukan, menginstall..."
     sudo apt-get update -qq
     sudo apt-get install -y f2fs-tools
@@ -69,12 +70,32 @@ for partition in $partitions; do
     fi
 done
 
+# --- fungsi bantu: deteksi fs_type dengan fallback manual untuk f2fs ---
+detect_fs_type() {
+    local img="$1"
+    local fs_type
+    fs_type=$(blkid -o value -s TYPE "$img" 2>/dev/null)
+
+    if [[ -z "$fs_type" ]]; then
+        # blkid kadang gagal deteksi f2fs pada image sparse/truncated,
+        # jadi cek magic number f2fs lewat fsck dry-run
+        if fsck.f2fs -n "$img" >/dev/null 2>&1; then
+            fs_type="f2fs"
+        fi
+    fi
+
+    echo "$fs_type"
+}
+
 for partition in $partitions; do
     if [[ -f "UnpackedROMs/$partition.img" ]]; then
         echo "File found: UnpackedROMs/$partition.img"
         mkdir -p "UnpackedROMs/temp_mount"
         mkdir -p "UnpackedROMs/$partition"
-        fs_type=$(blkid -o value -s TYPE "UnpackedROMs/$partition.img" 2>/dev/null)
+
+        fs_type=$(detect_fs_type "UnpackedROMs/$partition.img")
+        echo "Detected fs_type for $partition: ${fs_type:-unknown}"
+
         if [[ "$fs_type" == "ext2" || "$fs_type" == "ext4" ]]; then
             sudo mount -o loop,ro -t ext4 "UnpackedROMs/$partition.img" "UnpackedROMs/temp_mount"
         elif [[ "$fs_type" == "f2fs" ]]; then
@@ -82,6 +103,7 @@ for partition in $partitions; do
         else
             sudo mount "UnpackedROMs/$partition.img" "UnpackedROMs/temp_mount"
         fi
+
         cp -r "UnpackedROMs/temp_mount/". "UnpackedROMs/$partition/"
         sudo umount -R "UnpackedROMs/temp_mount"
     fi
